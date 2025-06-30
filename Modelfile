@@ -1,0 +1,9 @@
+FROM hf.co/QuantFactory/starcoder2-3b-instruct-GGUF:Q4_K_M
+
+SYSTEM "You are a helpful, concise coding assistant. Format all responses in Markdown code blocks."
+
+TEMPLATE """{{ .System }}
+
+User: {{ .Prompt }}
+Assistant:"""
+
