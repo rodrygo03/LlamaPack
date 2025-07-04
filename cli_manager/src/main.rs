@@ -6,10 +6,44 @@ mod session;
 mod ollama_client;
 
 use session::SessionManager;
-use ollama_client::query_ollama;
+use ollama_client::OllamaClient;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    println!("Starcoder2-3b Code");
+fn main() -> Result<(), Box<dyn Error>> {    
+    let ollama_client = OllamaClient::new();
+
+    match ollama_client.validate_daemon() {
+        Ok(true) => {
+            // Daemon is running, continue
+            println!("Ollama daemon is running")
+        }
+        Ok(false) | Err(_) => {
+            println!("Launching Ollama daemon");
+            match ollama_client.launch_daemon() {
+                Ok(()) => {
+                    println!("Daemon started successfully.");
+                }
+                Err(e) => {
+                    eprintln!("Failed to start daemon: {}", e);
+                    eprintln!("Please ensure Ollama is installed and try running 'ollama serve' manually.");
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+
+    let selected_model = match ollama_client.select_model() {
+        Ok(model) => {
+            println!("Selected LLM: {}", model);
+            model
+        }
+        Err(e) => {
+            eprintln!("Failed to select LLM: {}", e);
+
+            std::process::exit(1);
+        }
+    };
+
+    println!("Ollama Code");
     println!("===========================");
     
     // Get current working directory
@@ -21,14 +55,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("New session started. Type 'exit' to quit.\n");
     
     // Start prompt loop
-    prompt_loop(&mut session_manager)?;
+    prompt_loop(&mut session_manager, &ollama_client, &selected_model)?;
 
     Ok(())
 }
 
-fn prompt_loop(session_manager: &mut SessionManager) -> Result<(), Box<dyn Error>> {
+fn prompt_loop(session_manager: &mut SessionManager, ollama_client: &OllamaClient, model: &str) -> Result<(), Box<dyn Error>> {
     loop {
-        print!("starcoder2> ");
+        print!("{}> ", model.split(':').next().unwrap_or(model));
         io::stdout().flush()?;
 
         let mut input = String::new();
@@ -46,9 +80,9 @@ fn prompt_loop(session_manager: &mut SessionManager) -> Result<(), Box<dyn Error
             continue;
         }
 
-        // Query Ollama with starcoder2-3b-instruct model
+        // Query Ollama with selected model
         println!("Thinking...");
-        match query_ollama("starcoder2-3b-instruct-GGUF:Q4_K_M", input) {
+        match ollama_client.query_model(model, input) {
             Ok(response) => {
                 println!("\n{}\n", response);
                 
@@ -61,7 +95,7 @@ fn prompt_loop(session_manager: &mut SessionManager) -> Result<(), Box<dyn Error
             }
             Err(e) => {
                 eprintln!("Error querying Ollama: {}", e);
-                eprintln!("Make sure Ollama is running and starcoder2-3b-instruct-GGUF:Q4_K_M model is available.");
+                eprintln!("Make sure Ollama is running and the '{}' model is available.", model);
             }
         }
     }

@@ -1,2 +1,4 @@
 chat-log/
 claude-log/
+.coder_sessions/
+target/
