@@ -5,6 +5,8 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::thread;
+use std::fs;
+use indicatif::{ProgressBar, ProgressStyle};
 
 pub struct OllamaClient {
     client: Client,
@@ -117,71 +119,89 @@ impl OllamaClient {
     }
 
     pub fn prompt_and_pull_model(&self) -> Result<String, Box<dyn Error>> {
-        println!("Enter the name of the model you want to pull:");
-        // println!("(Examples: llama2, codellama, mistral, etc.)");
-        print!("Model name: ");
+        println!("Enter the path of desired model");
+        println!("(Examples: codellama, hf.co/TheBloke/CodeLlama-34B-GGUF:Q4_K_M, etc)");
+        print!("Model path: ");
         io::stdout().flush()?;
         
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
-        let model_name = input.trim();
+        let base_model_name = input.trim();
         
-        if model_name.is_empty() {
-            return Err("No model name provided".into());
+        if base_model_name.is_empty() {
+            return Err("No model path provided".into());
         }
         
-        println!("Pulling model '{}'...", model_name);
-        self.pull_model(model_name)?;
-        
-        Ok(model_name.to_string())
+        Ok(self.pull_model(base_model_name)?)
     }
 
-    pub fn pull_model(&self, model: &str) -> Result<(), Box<dyn Error>> {
-        println!("Pulling model '{}'... This may take a while.", model);
+    pub fn pull_model(&self, base_model: &str) -> Result<String, Box<dyn Error>> {
+        println!("Manifesting '{}'", base_model);
+
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(ProgressStyle::default_spinner()
+            .template("{spinner} {msg}")
+            .expect("template valid"));
+        pb.set_message("Creating model...");
+        pb.enable_steady_tick(Duration::from_millis(100));
         
-        let request_body = serde_json::json!({
-            "name": model,
-            "stream": true
-        });
+        // Hardcoded Modelfile template
+        let modelfile_template = format!(r#"
+            FROM {}
 
-        let response = self.client
-            .post(format!("{}/api/pull", self.base_url))
-            .json(&request_body)
-            .send()?;
+            SYSTEM """
+            You are an expert software development assistant. Your job is to help the user understand, write, and debug code across many languages.
+            Always clearly separate explanations from code.
+            When generating code, use triple backticks with language identifiers (e.g., ```rust).
+            Only generate code that is directly related to the user's task and relevant context.
+            """
 
-        if !response.status().is_success() {
-            return Err(format!("Failed to pull model: {}", response.status()).into());
+            TEMPLATE """
+            {{{{ .System }}}}
+
+            Context:
+            {{{{ .Context }}}}
+
+            User:
+            {{{{ .Prompt }}}}
+
+            Assistant:
+            """
+            "#, base_model
+        );
+
+        // Create temporary Modelfile 
+        let temp_modelfile_path = format!("Modelfile");
+        fs::write(&temp_modelfile_path, modelfile_template)?;
+        
+        let model_name = base_model.to_string();
+        
+        // Use ollama create to build the custom model
+        let output = Command::new("ollama")
+            .arg("create")
+            .arg(&model_name)
+            .arg("-f")
+            .arg(&temp_modelfile_path)
+            .output()
+            .map_err(|e| format!("Failed to run ollama create: {}. Make sure 'ollama' is installed and in PATH.", e))?;
+        
+        // Clean up temporary file
+        let _ = fs::remove_file(&temp_modelfile_path);
+
+        pb.finish_and_clear();
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("Failed to create model: {}", stderr).into());
         }
-
-        let reader = BufReader::new(response);
-        let mut last_status = String::new();
         
-        for line in reader.lines() {
-            let line = line?;
-            if line.trim().is_empty() {
-                continue;
-            }
-
-            if let Ok(json) = serde_json::from_str::<Value>(&line) {
-                if let Some(status) = json.get("status").and_then(|s| s.as_str()) {
-                    if status != last_status {
-                        println!("{}", status);
-                        last_status = status.to_string();
-                    }
-                }
-                
-                if let Some(completed) = json.get("completed").and_then(|c| c.as_u64()) {
-                    if let Some(total) = json.get("total").and_then(|t| t.as_u64()) {
-                        let progress = (completed as f64 / total as f64) * 100.0;
-                        print!("\rProgress: {:.1}%", progress);
-                        io::stdout().flush()?;
-                    }
-                }
-            }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if !stdout.is_empty() {
+            println!("{}", stdout);
         }
         
-        println!("\n Model '{}' pulled successfully.", model);
-        Ok(())
+        println!("'{}' created successfully.", model_name);
+        Ok(model_name)
     }
 
     pub fn query_model(&self, model: &str, prompt: &str) -> Result<String, Box<dyn Error>> {
