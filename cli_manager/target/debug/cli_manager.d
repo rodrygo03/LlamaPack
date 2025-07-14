@@ -1,1 +1,0 @@
-/Users/rodrigoorozco/Desktop/starcoder2-3b-code/cli_manager/target/debug/cli_manager: /Users/rodrigoorozco/Desktop/starcoder2-3b-code/cli_manager/src/main.rs /Users/rodrigoorozco/Desktop/starcoder2-3b-code/cli_manager/src/ollama_client.rs /Users/rodrigoorozco/Desktop/starcoder2-3b-code/cli_manager/src/session.rs
