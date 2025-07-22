@@ -1,4 +1,5 @@
 chat-log/
 claude-log/
 .coder_sessions/
+.vector_store/
 target/

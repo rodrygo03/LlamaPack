@@ -1,4 +1,4 @@
-use ort::{session::Session, inputs, value::Value};
+use ort::{session::Session, inputs, value::Value,};
 use tokenizers::Tokenizer;
 
 use ndarray::{Array, IxDyn};
@@ -42,37 +42,26 @@ impl Embedder {
             IxDyn(&[1, seq_len]),
             input_ids.iter().map(|&id| id as i64).collect(),
         )?;
-
         let attention_mask_array = Array::from_shape_vec(
             IxDyn(&[1, seq_len]),
             attention_mask.iter().map(|&mask| mask as i64).collect(),
         )?;
 
-        // Step 3: Create ONNX inputs
         let input_tensor = Value::from_array(input_ids_array)?;
         let attention_tensor = Value::from_array(attention_mask_array)?;
 
-        // Step 4: Run session
         let outputs = self.session.run(inputs![
             "input_ids" => input_tensor,
             "attention_mask" => attention_tensor
         ])?;
 
-        // Step 5: Extract pooled output
         let (shape, data) = outputs[0].try_extract_tensor::<f32>()?;
-
-        // Treat `shape` as &[i64] directly
         let shape: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
 
-        // Now create the ndarray
         let output = ndarray::ArrayD::from_shape_vec(shape, data.to_vec())?;
-
-        // Step 6: Return as flat Vec<f32>
         Ok(output.iter().cloned().collect())
     }
 
-
-    /// (Optional) Embed a batch of prompts
     pub fn embed_batch(&mut self, prompts: &[String]) -> anyhow::Result<Vec<Vec<f32>>> {
         let mut embeddings = Vec::with_capacity(prompts.len());
         
