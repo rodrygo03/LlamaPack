@@ -3,3 +3,14 @@ claude-log/
 .coder_sessions/
 .vector_store/
 target/
+.DS_Store
+
+# venv for UniXcoder download
+unixcoder_env/
+# UniXcoder json and onnx files
+config.json
+tokenizer.json
+unixcoder-embedding.onnx
+unixcoder-tokenizer.json
+
+
