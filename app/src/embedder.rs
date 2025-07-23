@@ -3,7 +3,7 @@ use tokenizers::Tokenizer;
 
 use ndarray::{Array, IxDyn};
 
-const MAX_LEN: usize = 768;
+const MAX_LEN: usize = 512; // max input sequence len
 
 pub struct Embedder {
     session: Session,

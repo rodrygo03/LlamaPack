@@ -14,7 +14,7 @@ fn build_embeddings_schema() -> Schema {
         Field::new("path", DataType::Utf8, false),
         Field::new("hash", DataType::Utf8, false),
         Field::new("embedding", DataType::FixedSizeList(
-                Arc::new(Field::new("item", DataType::Float32, false)),
+                Arc::new(Field::new("item", DataType::Float32, true)),
                 EMBEDDING_DIM,
             ),
             false,
@@ -23,7 +23,8 @@ fn build_embeddings_schema() -> Schema {
         Field::new("last_modified", DataType::Timestamp(TimeUnit::Microsecond, None), false),
         Field::new("last_accessed", DataType::Timestamp(TimeUnit::Microsecond, None), false),
         Field::new("line_count", DataType::Int16, false),
-        Field::new("imported_by", DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))), false),
+        Field::new("imported_by", DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))), true),
+        Field::new("content_preview", DataType::Utf8, true), 
     ])
 }
 
